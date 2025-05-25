@@ -409,6 +409,14 @@
 
     <script>
         let currentQuiz = 0;
+        let score = 0;
+        let userName = '';
+        let userId = '';
+        
+        // KONFIGURASI TELEGRAM BOT
+        const TELEGRAM_BOT_TOKEN = '7621118144:AAHGfdKRStE5-0MBQm-Nsgz0ilfX3rsC1C8';
+        const TELEGRAM_CHAT_ID = '5336726671';
+        
         const quizQuestions = [
             {
                 question: "Apa yang dimaksud dengan Digital Citizen?",
@@ -450,7 +458,33 @@
         }
 
         function startQuiz() {
+            // Reset quiz data
             currentQuiz = 0;
+            score = 0;
+            
+            // Minta input nama dan ID siswa
+            const userDataHTML = `
+                <div style="background: white; padding: 25px; border-radius: 15px; margin: 20px 0;">
+                    <h3>📝 Data Siswa</h3>
+                    <p>Masukkan data Anda sebelum memulai kuis:</p>
+                    <input type="text" id="userName" placeholder="Nama Lengkap" style="width: 100%; padding: 10px; margin: 10px 0; border: 2px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <input type="text" id="userId" placeholder="NIM/NIS/ID Siswa" style="width: 100%; padding: 10px; margin: 10px 0; border: 2px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <button class="quiz-btn" onclick="validateAndStartQuiz()" style="margin-top: 15px;">Mulai Kuis 🚀</button>
+                </div>
+            `;
+            
+            document.querySelector('.quiz-section').innerHTML = userDataHTML;
+        }
+
+        function validateAndStartQuiz() {
+            userName = document.getElementById('userName').value.trim();
+            userId = document.getElementById('userId').value.trim();
+            
+            if (!userName || !userId) {
+                alert('Mohon lengkapi nama dan ID siswa!');
+                return;
+            }
+            
             showQuiz();
         }
 
@@ -463,32 +497,201 @@
                 
                 const quizHTML = `
                     <div style="background: white; padding: 25px; border-radius: 15px; margin: 20px 0;">
-                        <h3>Pertanyaan ${currentQuiz + 1}:</h3>
+                        <h3>Pertanyaan ${currentQuiz + 1} dari ${quizQuestions.length}:</h3>
                         <p style="font-size: 1.2em; margin: 20px 0;">${quiz.question}</p>
                         ${optionsHTML}
+                        <p style="margin-top: 20px; color: #666;"><strong>Skor: ${score}/${currentQuiz}</strong></p>
                     </div>
                 `;
                 
                 document.querySelector('.quiz-section').innerHTML = quizHTML;
             } else {
-                document.querySelector('.quiz-section').innerHTML = `
-                    <div style="background: #2ecc71; color: white; padding: 25px; border-radius: 15px; text-align: center;">
-                        <h3>🎉 Selamat! Kuis Selesai!</h3>
-                        <p>Anda telah menyelesaikan semua pertanyaan.</p>
-                        <button class="quiz-btn" onclick="startQuiz()" style="background: white; color: #2ecc71;">Ulangi Kuis</button>
-                    </div>
-                `;
+                sendScoreToTelegram();
             }
+        }
+
+        async function sendScoreToTelegram() {
+            const finalScore = score;
+            const totalQuestions = quizQuestions.length;
+            const percentage = Math.round((finalScore / totalQuestions) * 100);
+            const grade = getGrade(percentage);
+            const timestamp = new Date().toLocaleString('id-ID');
+            
+            const message = `
+🎓 HASIL KUIS PEMBELAJARAN
+📚 Materi: Digital Citizen vs Citizen Journalism
+
+👤 Nama: ${userName}
+🆔 ID: ${userId}
+📅 Waktu: ${timestamp}
+
+📊 HASIL:
+✅ Benar: ${finalScore}
+❌ Salah: ${totalQuestions - finalScore}
+📈 Nilai: ${percentage}%
+🏆 Grade: ${grade}
+
+${getMotivationalMessage(percentage)}
+            `.trim();
+            
+            // Tampilkan hasil di halaman
+            displayFinalResult(finalScore, totalQuestions, percentage, grade);
+            
+            // Kirim ke Telegram
+            try {
+                const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: message,
+                        parse_mode: 'Markdown'
+                    })
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Hasil berhasil dikirim ke Telegram!');
+                    showTelegramStatus('✅ Nilai berhasil dikirim ke Telegram!', 'success');
+                } else {
+                    console.error('❌ Gagal mengirim ke Telegram:', response.statusText);
+                    showTelegramStatus('⚠️ Gagal mengirim ke Telegram', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error mengirim ke Telegram:', error);
+                showTelegramStatus('⚠️ Error koneksi ke Telegram', 'error');
+            }
+        }
+
+        function displayFinalResult(finalScore, totalQuestions, percentage, grade) {
+            const resultColor = percentage >= 80 ? '#2ecc71' : percentage >= 60 ? '#f39c12' : '#e74c3c';
+            
+            document.querySelector('.quiz-section').innerHTML = `
+                <div style="background: ${resultColor}; color: white; padding: 25px; border-radius: 15px; text-align: center;">
+                    <h3>🎉 Kuis Selesai!</h3>
+                    <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px; margin: 20px 0;">
+                        <h2>${userName}</h2>
+                        <p><strong>ID: ${userId}</strong></p>
+                        <div style="font-size: 2em; margin: 10px 0;">${percentage}%</div>
+                        <div style="font-size: 1.5em; margin: 10px 0;">Grade: ${grade}</div>
+                        <p>Benar: ${finalScore}/${totalQuestions}</p>
+                    </div>
+                    <p>${getMotivationalMessage(percentage)}</p>
+                    <button class="quiz-btn" onclick="startQuiz()" style="background: white; color: ${resultColor}; margin: 10px;">Ulangi Kuis</button>
+                    <button class="quiz-btn" onclick="downloadCertificate()" style="background: rgba(255,255,255,0.2); border: 2px solid white; margin: 10px;">📜 Download Sertifikat</button>
+                </div>
+            `;
+        }
+
+        function getGrade(percentage) {
+            if (percentage >= 90) return 'A+';
+            if (percentage >= 85) return 'A';
+            if (percentage >= 80) return 'A-';
+            if (percentage >= 75) return 'B+';
+            if (percentage >= 70) return 'B';
+            if (percentage >= 65) return 'B-';
+            if (percentage >= 60) return 'C+';
+            if (percentage >= 55) return 'C';
+            if (percentage >= 50) return 'C-';
+            return 'D';
+        }
+
+        function getMotivationalMessage(percentage) {
+            if (percentage >= 90) return '🌟 Luar biasa! Anda menguasai materi dengan sangat baik!';
+            if (percentage >= 80) return '👏 Bagus sekali! Pemahaman Anda sangat baik!';
+            if (percentage >= 70) return '👍 Baik! Anda memahami sebagian besar materi!';
+            if (percentage >= 60) return '📚 Cukup baik, tapi masih bisa ditingkatkan!';
+            return '💪 Jangan menyerah! Coba pelajari lagi materinya!';
+        }
+
+        function showTelegramStatus(message, type) {
+            const statusColor = type === 'success' ? '#2ecc71' : '#e74c3c';
+            const statusDiv = document.createElement('div');
+            statusDiv.innerHTML = `
+                <div style="background: ${statusColor}; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; text-align: center; animation: fadeInOut 3s ease-in-out;">
+                    ${message}
+                </div>
+            `;
+            document.querySelector('.quiz-section').appendChild(statusDiv);
+            
+            // Hapus status setelah 3 detik
+            setTimeout(() => {
+                if (statusDiv.parentNode) {
+                    statusDiv.parentNode.removeChild(statusDiv);
+                }
+            }, 3000);
+        }
+
+        function downloadCertificate() {
+            const percentage = Math.round((score / quizQuestions.length) * 100);
+            const grade = getGrade(percentage);
+            const date = new Date().toLocaleDateString('id-ID');
+            
+            // Buat canvas untuk sertifikat
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 600;
+            const ctx = canvas.getContext('2d');
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, 800, 600);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 800, 600);
+            
+            // Border
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 10;
+            ctx.strokeRect(20, 20, 760, 560);
+            
+            // Title
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('SERTIFIKAT PEMBELAJARAN', 400, 100);
+            
+            // Content
+            ctx.font = '24px Arial';
+            ctx.fillText('Diberikan kepada:', 400, 180);
+            
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText(userName, 400, 230);
+            
+            ctx.font = '20px Arial';
+            ctx.fillText(`ID: ${userId}`, 400, 270);
+            
+            ctx.font = '22px Arial';
+            ctx.fillText('Telah menyelesaikan kuis', 400, 320);
+            ctx.fillText('Digital Citizen vs Citizen Journalism', 400, 350);
+            
+            ctx.font = 'bold 28px Arial';
+            ctx.fillText(`Nilai: ${percentage}% (Grade ${grade})`, 400, 420);
+            
+            ctx.font = '18px Arial';
+            ctx.fillText(`Tanggal: ${date}`, 400, 480);
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = `Sertifikat_${userName.replace(/\s+/g, '_')}_${userId}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
         }
 
         function checkAnswer(selectedIndex) {
             const quiz = quizQuestions[currentQuiz];
             const isCorrect = selectedIndex === quiz.correct;
             
+            if (isCorrect) {
+                score++;
+            }
+            
             const resultHTML = `
                 <div style="background: ${isCorrect ? '#2ecc71' : '#e74c3c'}; color: white; padding: 20px; border-radius: 10px; margin: 20px 0;">
                     <h3>${isCorrect ? '✅ Benar!' : '❌ Salah!'}</h3>
                     <p>Jawaban yang benar: ${quiz.options[quiz.correct]}</p>
+                    <p><strong>Skor saat ini: ${score}/${currentQuiz + 1}</strong></p>
                     <button class="quiz-btn" onclick="nextQuestion()" style="background: white; color: ${isCorrect ? '#2ecc71' : '#e74c3c'};">Lanjut</button>
                 </div>
             `;
